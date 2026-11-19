@@ -16,11 +16,27 @@ Un plugin para Claude Code que detecta cuándo el agente choca con el mismo muro
 ![Dependencias: 0](https://img.shields.io/badge/dependencias-0-brightgreen)
 ![Llamadas de red: 0](https://img.shields.io/badge/llamadas%20de%20red-0-brightgreen)
 
-[El problema](#el-problema) · [Qué ganas](#qué-ganas) · [Cómo se compara](#cómo-se-compara) · [Cómo funciona](#cómo-funciona) · [Instalación](#instalación) · [Evidencia](#evidencia) · [Investigación](#investigación-que-lo-respalda) · [Privacidad](#privacidad-y-seguridad)
+[En 30 segundos](#en-30-segundos) · [El problema](#el-problema) · [Qué ganas](#qué-ganas) · [Cómo se compara](#cómo-se-compara) · [Cómo funciona](#cómo-funciona) · [Instalación](#instalación) · [Evidencia](#evidencia) · [Investigación](#investigación-que-lo-respalda) · [Privacidad](#privacidad-y-seguridad)
 
 </div>
 
 ---
+
+## En 30 segundos
+
+¿Nuevo en esto? Empieza aquí.
+
+- **Claude Code** es un asistente de IA que trabaja dentro de tu proyecto. Lee archivos, edita código y ejecuta comandos (tests, builds, scripts) por su cuenta. A este tipo de asistente se le llama *agente de código*.
+- **El problema:** a veces el agente se atasca. Un comando falla, prueba otro comando un poco distinto, falla con el mismo error exacto, y sigue así. Cada intento cuesta tiempo y dinero, y llena su memoria con el mismo error una y otra vez. El agente no siempre se da cuenta de que está dando vueltas.
+- **Qué hace groundhog:** vigila ese patrón. Cuando el mismo error vuelve, le agrega al agente una nota corta: *"es el mismo problema de antes, esto es lo que ya probaste, para y pon a prueba una idea concreta"*. Si pasa una tercera vez, la nota dice: *"deja de adivinar: encuentra la causa, pásale el problema a un ayudante nuevo o pregúntale al usuario"*.
+- **Qué haces tú:** instalarlo una vez. No hay nada que ejecutar ni configurar. Se queda callado hasta que el agente repite un fallo.
+- **Qué nunca hace:** no bloquea al agente, no cambia tu código y no envía nada por internet. Solo agrega unas líneas de consejo en el momento justo.
+
+Piensa en un compañero que mira por encima del hombro del agente y le dice *"eso ya lo probaste, es el mismo error"* antes del sexto intento y no después.
+
+El nombre viene de la película *Groundhog Day* (*El día de la marmota* / *Hechizo del tiempo*), donde el protagonista despierta en el mismo día una y otra vez hasta que cambia de enfoque. Un agente atascado vive el mismo error una y otra vez. groundhog se lo hace ver.
+
+**Para quién es:** para cualquiera que deje a Claude Code ejecutar comandos por su cuenta: desarrolladores, equipos que lo usan en sesiones largas y personas que no son expertas y no siempre saben cuándo el agente está dando vueltas en círculo.
 
 ## El problema
 
@@ -160,6 +176,22 @@ Editing the same spot again and again usually means each change is a guess. Befo
 next edit to this file, run the check that shows whether the last change worked, and
 say what it printed.
 ```
+
+### Un ejemplo completo, paso a paso
+
+Esta es una sesión de principio a fin, para que veas cuándo habla groundhog y cuándo se queda callado. Los comandos y errores son un ejemplo; las notas usan el texto real que se muestra arriba.
+
+1. **Tú pides:** "Agrega un endpoint de login y haz que pasen los tests".
+2. **El agente edita unos archivos y ejecuta `npm test`.** Falla: `Error: Cannot find module '/app/src/db.js'`.
+   groundhog guarda la firma del error (`Cannot find module '<path>'`) y **no dice nada**. Un fallo es normal.
+3. **El agente prueba `npx jest`.** El mismo error.
+   groundhog ve la misma firma desde la misma herramienta por segunda vez y **agrega la nota del 2.º choque**: es el mismo muro, estos son tus dos intentos, escribe una hipótesis, predice qué va a imprimir una comprobación barata, ejecútala y cita el resultado.
+4. **El agente deja de adivinar y plantea una hipótesis:** "Los tests importan `src/db.js`, pero el archivo se movió". Predice que `ls src` no va a listar `db.js`, lo ejecuta y cita la salida: `database/  routes/  server.js`. Hipótesis confirmada.
+5. **El agente corrige el import a `src/database/db.js` y ejecuta `npm test`.** Los tests pasan. El bucle terminó en el intento 2.
+
+Si el agente hubiera ignorado la nota y probado `node test/run.js`, el tercer fallo traería la **nota de alto**: encontrar la causa raíz leyendo el error y el código al que apunta, pasarle el problema a un subagente nuevo con un resumen corto, o preguntarte a ti. En cualquier caso te enteras en el intento 3, no después del intento 10.
+
+Sin groundhog, la misma sesión suele parecerse al bloque "Sin groundhog" del principio: cuatro, seis, diez variantes del mismo comando, cada una pegando el mismo error en la conversación.
 
 ## Instalación
 
@@ -312,7 +344,34 @@ Discusiones relacionadas: [#4317](https://github.com/anthropics/claude-code/issu
 - Los contadores son por sesión. Un muro que abarca varias sesiones se ve en el reporte, no en vivo.
 - El reporte y el bench leen el formato de transcript que usa Claude Code hoy. Si ese formato cambia, podrían contar de menos hasta que se actualicen. Los hooks no dependen de él.
 
+## Palabras que usa este README
+
+| Palabra | Significado |
+| --- | --- |
+| **Agente** | La IA (aquí, Claude Code) que edita código y ejecuta comandos por ti. |
+| **Llamada a herramienta** | Una acción del agente: ejecutar un comando (`Bash`), editar un archivo (`Edit`), consultar un servidor MCP, etc. |
+| **Sesión** | Una conversación con Claude Code, de principio a fin. groundhog cuenta por sesión. |
+| **Hook** | Un script pequeño que Claude Code ejecuta solo después de ciertos eventos. groundhog usa dos: uno cuando falla una herramienta y otro después de una edición. |
+| **Muro** | La misma herramienta fallando con el mismo error en una sesión, aunque el comando haya cambiado cada vez. |
+| **Firma** | El error con las partes que cambian en cada intento (rutas, números de línea, hashes, puertos) reemplazadas por marcadores, para que dos intentos del mismo problema se vean iguales. |
+| **Nota** | Las pocas líneas que groundhog agrega junto al resultado fallido. Solo las lee el agente; cambian lo que hace a continuación. |
+| **Reversión** | Una edición que deja un archivo como estaba antes de una edición anterior (A a B, y de vuelta a A). |
+| **Retrabajo** | Reescribir las mismas líneas una y otra vez, con un fallo en medio cada vez. |
+| **Subagente** | Un agente ayudante nuevo, con la memoria limpia. Pasarle un resumen corto suele funcionar mejor que seguir en una conversación larga y llena de ruido. |
+| **Herramienta MCP** | Una herramienta de un servidor externo (base de datos, navegador, API) conectada a Claude Code. groundhog también las vigila. |
+| **Ventana de contexto** | La memoria de trabajo del agente durante la sesión. Los errores repetidos la llenan de ruido. |
+
 ## Preguntas frecuentes
+
+**¿Me arregla el bug?** No. Nota que el agente está atascado y le dice cómo salir: probar una hipótesis, encontrar la causa raíz, pasarle el problema a otro o preguntarte. El arreglo lo sigue haciendo el agente.
+
+**¿Cambia mi código o mis comandos?** No. Nunca edita archivos, nunca bloquea un comando y nunca reescribe la salida. Solo agrega una nota corta.
+
+**¿Cómo sé que está funcionando?** Casi siempre no lo notarás, y esa es la idea. Cuando se activa, verás que el agente se detiene a plantear una hipótesis y ejecutar una comprobación, o que viene a ti con un resumen corto de lo que probó. Para ver qué tan seguido se atascan tus sesiones, ejecuta `/groundhog-report`.
+
+**¿Y si el agente ignora la nota?** Puede pasar. groundhog aconseja, no obliga. Si el mismo muro vuelve una tercera vez, la nota se pone más firme y ofrece tres salidas. La sección [Evidencia](#evidencia) explica por qué el ahorro se reporta como un techo.
+
+**¿Cómo lo apago o lo quito?** Pon `GROUNDHOG_DISABLE=1` para pausarlo, o ejecuta `claude plugin uninstall groundhog@groundhog` para quitarlo.
 
 **¿Gasta tokens?** Unos cientos por nota. En la reproducción de arriba fue más o menos una nota por cada cien llamadas.
 
