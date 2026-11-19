@@ -20,7 +20,7 @@ const TEXT = {
     withWalls: 'Sessions that hit a wall',
     walls: 'Walls (same error 3+ times in a session)',
     calls: 'Failed calls spent inside walls',
-    varied: 'Walls where the input kept changing',
+    varied: 'Walls where the input changed at least once',
     identical: 'Walls with identical retries',
     reverts: 'Edits that undid an earlier edit',
     top: 'Most common walls',
@@ -33,7 +33,7 @@ const TEXT = {
     withWalls: 'Sesiones que chocaron con un muro',
     walls: 'Muros (mismo error 3+ veces en una sesión)',
     calls: 'Llamadas fallidas gastadas en muros',
-    varied: 'Muros donde la entrada iba cambiando',
+    varied: 'Muros donde la entrada cambió al menos una vez',
     identical: 'Muros con reintentos idénticos',
     reverts: 'Ediciones que deshicieron una edición anterior',
     top: 'Muros más frecuentes',
@@ -58,7 +58,9 @@ const resultText = (content) =>
     : Array.isArray(content) ? content.map((c) => (c && typeof c.text === 'string' ? c.text : '')).join('\n')
       : '';
 
-async function scanFile(file) {
+// onEvent (optional) sees every tool result ({ result: { chars, isError, hit } })
+// and every flagged edit ({ edit }), in transcript order. bench/replay.js uses it.
+async function scanFile(file, onEvent = () => {}) {
   const state = newState();
   const pending = new Map();
   let reverts = 0;
@@ -73,14 +75,20 @@ async function scanFile(file) {
       if (c.type === 'tool_use') {
         const input = c.input && typeof c.input === 'object' ? c.input : {};
         pending.set(c.id, { tool: String(c.name || ''), input });
-        if (c.name === 'Edit' && typeof input.file_path === 'string' &&
-            typeof input.old_string === 'string' && typeof input.new_string === 'string') {
-          if (recordEdit(state, { file: input.file_path, oldStr: input.old_string, newStr: input.new_string })) reverts++;
-        }
       } else if (c.type === 'tool_result') {
         const call = pending.get(c.tool_use_id);
         pending.delete(c.tool_use_id);
-        if (call && c.is_error) recordFailure(state, { tool: call.tool, input: call.input, error: resultText(c.content) });
+        const input = call ? call.input : {};
+        // Like the live hook (PostToolUse), only an Edit that succeeded counts as an edit.
+        if (call && call.tool === 'Edit' && !c.is_error && typeof input.file_path === 'string' &&
+            typeof input.old_string === 'string' && typeof input.new_string === 'string') {
+          const edit = recordEdit(state, { file: input.file_path, oldStr: input.old_string, newStr: input.new_string });
+          if (edit && edit.reverts) reverts++;
+          if (edit) onEvent({ edit });
+        }
+        const text = resultText(c.content);
+        const hit = call && c.is_error ? recordFailure(state, { tool: call.tool, input: call.input, error: text }) : null;
+        onEvent({ result: { chars: text.length, isError: !!c.is_error, hit } });
       }
     }
   }
@@ -160,4 +168,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { report, format, parseArgs };
+module.exports = { report, format, parseArgs, scanFile, listTranscripts };

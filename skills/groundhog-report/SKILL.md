@@ -18,7 +18,7 @@ Run the bundled scanner and summarize what it prints.
    If the user named a different transcripts folder, pass it with `--dir "<folder>"`. For raw numbers, add `--json`.
 3. Reply in the user's language with:
    - how many sessions were scanned and how many hit a wall
-   - how many walls had changing commands versus identical retries (the changing ones are what plain loop detectors miss)
+   - how many walls had at least one changed command versus only identical retries (the changed ones are what identical-call loop detectors catch late or never)
    - the top three walls, quoted as printed
    - one concrete habit or project fix that would remove the biggest wall
 4. Say once that the scan ran locally and nothing left the machine.

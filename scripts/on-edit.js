@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 'use strict';
 
-// PostToolUse hook for Edit: flags an edit that undoes an earlier edit (A -> B -> A).
+// PostToolUse hook for Edit: flags an edit that undoes an earlier edit (A -> B -> A),
+// and repeated rewrites of lines written earlier in the session.
 
 const { readPayload, emit, config } = require('./lib/hookio');
 const { stateDir, sessionFile, load, save } = require('./lib/state');
 const { recordEdit } = require('./lib/detect');
-const { revertMessage } = require('./lib/messages');
+const { revertMessage, reworkMessage } = require('./lib/messages');
 
 try {
   const cfg = config();
@@ -18,7 +19,8 @@ try {
     const state = load(file);
     const r = recordEdit(state, { file: input.file_path, oldStr: input.old_string, newStr: input.new_string });
     save(file, state);
-    if (r) emit('PostToolUse', revertMessage(input.file_path, r.reverts));
+    if (r && r.reverts) emit('PostToolUse', revertMessage(input.file_path, r.reverts));
+    else if (r && r.rework) emit('PostToolUse', reworkMessage(input.file_path, r.rework));
   }
 } catch {
   // Never break the user's session because of this hook.

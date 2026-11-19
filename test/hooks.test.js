@@ -102,3 +102,31 @@ test('PostToolUse Edit: flags an edit that undoes an earlier one', () => {
   assert.match(out.hookSpecificOutput.additionalContext, /app\.js/);
   assert.match(out.hookSpecificOutput.additionalContext, /undoes/);
 });
+
+test('MCP tool failures are counted like any other tool', () => {
+  const dir = freshDir();
+  const mcp = (q) => failure(q, { tool_name: 'mcp__db__query', tool_input: { query: q }, error: 'Error: relation "users" does not exist' });
+  assert.equal(run('on-failure.js', mcp('select 1'), dir), null);
+  const ctx = run('on-failure.js', mcp('select 2'), dir).hookSpecificOutput.additionalContext;
+  assert.match(ctx, /mcp__db__query/);
+  assert.match(ctx, /2nd time/);
+});
+
+test('PostToolUse Edit: flags repeated rework of the same lines', () => {
+  const dir = freshDir();
+  const v = (n) => `  const limit = computeLimit(${n});`;
+  const edit = (o, n) => ({
+    session_id: 's', hook_event_name: 'PostToolUse', tool_name: 'Edit',
+    tool_input: { file_path: '/p/src/parser.js', old_string: o, new_string: n },
+  });
+  // edit, test fails, re-edit: the failure hook and the edit hook share session state
+  const testFails = (n) => run('on-failure.js', failure('npm test', { session_id: 's', error: `Error: case ${n} broke` }), dir);
+  assert.equal(run('on-edit.js', edit('let x;', v(1)), dir), null);
+  testFails(1);
+  assert.equal(run('on-edit.js', edit(v(1), v(2)), dir), null);
+  testFails(2);
+  assert.equal(run('on-edit.js', edit(v(2), v(3)), dir), null);
+  testFails(3);
+  const out = run('on-edit.js', edit(v(3), v(4)), dir);
+  assert.match(out.hookSpecificOutput.additionalContext, /parser\.js/);
+});

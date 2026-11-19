@@ -23,8 +23,10 @@ function fixture() {
     use('t2', 'Bash', { command: 'npx jest' }), res('t2', [{ type: 'text', text: err(2) }]),
     use('t3', 'Bash', { command: 'node run.js' }), res('t3', err(3)),
     use('t4', 'Bash', { command: 'ls' }), res('t4', 'ok', false),
-    use('e1', 'Edit', { file_path: '/p/a.js', old_string: 'A', new_string: 'B' }),
-    use('e2', 'Edit', { file_path: '/p/a.js', old_string: 'B', new_string: 'A' }),
+    use('e1', 'Edit', { file_path: '/p/a.js', old_string: 'A', new_string: 'B' }), res('e1', 'ok', false),
+    use('e2', 'Edit', { file_path: '/p/a.js', old_string: 'B', new_string: 'A' }), res('e2', 'ok', false),
+    // a failed Edit changed nothing, so it cannot revert anything
+    use('e3', 'Edit', { file_path: '/p/a.js', old_string: 'A', new_string: 'B' }), res('e3', 'String to replace not found'),
   ].join('\n'));
   fs.writeFileSync(path.join(dir, 'proj-b', 's2.jsonl'), [
     use('u1', 'Read', { file_path: '/x' }), res('u1', 'File does not exist.'),

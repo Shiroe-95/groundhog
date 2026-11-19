@@ -53,6 +53,10 @@ test('state with valid shape but bad contents starts fresh', () => {
     { v: 1, walls: 'x', edits: 'y' },
     { v: 1, walls: [], edits: [] },
     { v: 1, walls: { k: { count: '7', attempts: 'zz' } }, edits: {} },
+    { v: 1, walls: {}, edits: { k: { pairs: [], reverts: 0, lines: 5 } } },
+    { v: 1, walls: {}, edits: { k: { pairs: [], reverts: 0, rework: 'x' } } },
+    { v: 1, walls: {}, edits: { k: { pairs: [null], reverts: 0 } } },
+    { v: 1, walls: { k: { count: 1, attempts: [], inputs: 3 } }, edits: {} },
   ]) {
     fs.writeFileSync(f, JSON.stringify(bad));
     assert.deepStrictEqual(load(f), { v: 1, walls: {}, edits: {} });
@@ -88,4 +92,10 @@ test('report masks MCP server names and quoted or CamelCase names', () => {
   const out = execFileSync(process.execPath, [path.join(__dirname, '..', 'scripts', 'report.js'), '--dir', dir], { encoding: 'utf8' });
   assert.match(out, /\[mcp\]/);
   assert.doesNotMatch(out, /acme|Merger/i);
+});
+
+test('fallback state folder is private to the user', { skip: !process.getuid }, () => {
+  const { stateDir } = require('../scripts/lib/state');
+  const dir = stateDir({});
+  assert.match(path.basename(dir), new RegExp(`^groundhog-${process.getuid()}$`));
 });

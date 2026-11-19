@@ -2,16 +2,21 @@
 
 **English** · [Español](README.es.md)
 
+<img src="assets/banner.svg" alt="Three different commands hit the same error wall" width="100%">
+
 # groundhog
 
 **Your coding agent keeps waking up in the same error. groundhog notices.**
 
-A Claude Code plugin that spots when the agent hits the same wall through *different* commands, or keeps undoing its own edits, and tells it to stop and think before the next try.
+A Claude Code plugin that spots when the agent hits the same wall through *different* commands, or keeps rewriting its own edits, and tells it to stop and think before the next try.
 
 [![CI](https://github.com/Shiroe-95/groundhog/actions/workflows/ci.yml/badge.svg)](https://github.com/Shiroe-95/groundhog/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Node >= 20.1](https://img.shields.io/badge/node-%3E%3D20.1-339933)
 ![Dependencies: 0](https://img.shields.io/badge/dependencies-0-brightgreen)
+![Network calls: 0](https://img.shields.io/badge/network%20calls-0-brightgreen)
+
+[The problem](#the-problem) · [How it works](#how-it-works) · [Install](#install) · [Evidence](#evidence) · [Research](#research-behind-it) · [Privacy](#privacy-and-security)
 
 </div>
 
@@ -19,23 +24,35 @@ A Claude Code plugin that spots when the agent hits the same wall through *diffe
 
 ## The problem
 
-You have seen it. The agent runs a command, gets an error, tweaks the command, gets the same error, tries a different flag, then a different file, then a different tool. Six attempts later nothing has moved, and the context window is full of near-identical failures.
+You have seen it. The agent runs the tests, gets an error, tweaks the command, gets the same error, tries a different flag, then a different file, then a different tool. Six attempts later nothing has moved, and the context window is full of near-identical failures.
+
+**Without groundhog:**
+
+```
+> npm test                 Error: Cannot find module '/app/src/db.js'
+> npx jest                 Error: Cannot find module '/app/src/db.js'
+> node test/run.js         Error: Cannot find module '/app/src/db.js'
+> npm test -- --runInBand  Error: Cannot find module '/app/src/db.js'
+> ...                      (the agent keeps guessing; you keep paying)
+```
+
+**With groundhog**, on the second failure the agent is told that this is the same wall, shown what it already tried, and asked for a testable hypothesis. On the third it is told to stop guessing and either find the root cause, hand off to a fresh subagent with a short brief, or ask you.
 
 Most loop guards look for **identical** calls: same tool, same arguments, over and over. That catches the dumbest loop, but it is not the common one. The agent rarely repeats itself exactly. It changes the input every time, and the error stays the same.
 
-I measured this on my own Claude Code history before writing any code:
+I measured this on my own Claude Code history with `/groundhog-report`:
 
 | What | Count |
 | --- | --- |
-| Sessions scanned | 616 |
-| Sessions that hit at least one wall | 113 (18%) |
-| Walls (same tool, same error, 3+ times in one session) | 141 |
-| Failed calls spent inside those walls | 639 |
-| Walls where **every retry changed the input** | 83 (59%) |
-| Walls made of identical retries | 58 (41%) |
-| Edits that undid an earlier edit (A to B, back to A) | 23 |
+| Sessions scanned | 620 |
+| Sessions that hit at least one wall | 114 (18%) |
+| Walls (same tool, same error, 3+ times in one session) | 140 |
+| Failed calls spent inside those walls | 632 |
+| Walls where the agent **changed the input at least once** | 108 (77%) |
+| Walls made only of identical retries | 32 (23%) |
+| Edits that undid an earlier edit (A to B, back to A) | 14 |
 
-Six out of ten walls would slip right past an identical-call detector. That gap is what groundhog fills.
+In three out of four walls the agent changed the command along the way, so a detector that waits for N identical calls in a row sees a shorter loop, or none at all. groundhog counts the error instead, so the changes do not hide the wall.
 
 You can get the same table for your own sessions with `/groundhog-report`.
 
@@ -44,27 +61,29 @@ You can get the same table for your own sessions with `/groundhog-report`.
 groundhog is two small hooks and two skills. No network, no dependencies, no background process.
 
 ```
-tool fails ──> PostToolUseFailure hook
+tool fails ──> PostToolUseFailure hook  (any tool, MCP tools included)
                  │
                  ├─ normalize the error into a signature
-                 │    paths  -> <path>
-                 │    hashes -> <hex>
-                 │    numbers -> <n>
+                 │    paths -> <path>   hashes -> <hex>   numbers -> <n>
                  │
-                 ├─ count (tool + signature) for this session
+                 ├─ same tool + same (or nearly the same) signature? count it
+                 ├─ more tests passing than last time? progress: reset the count
                  │
-                 ├─ 2nd hit: "new hypothesis before you retry"
-                 └─ 3rd hit: "stop. read the error, hand off, or ask"
+                 ├─ 2nd hit: hypothesis, prediction, check
+                 └─ 3rd hit: stop. root cause, fresh subagent, or ask the user
 
 Edit succeeds ──> PostToolUse hook
-                 └─ this edit reverses an earlier one? say so
+                 ├─ this edit reverses an earlier one? say so
+                 └─ rewriting its own lines again after a failure? say so
 ```
 
-**The signature is the key idea.** `Cannot find module '/home/a/src/db.js'` and `Cannot find module 'C:\work\src\db.js'` are the same wall. Line numbers, temp paths, commit hashes and ports change on every attempt. The cause does not. groundhog strips the noise and keeps the shape of the error.
+**The signature is the key idea.** `Cannot find module '/home/a/src/db.js'` and `Cannot find module 'C:\work\src\db.js'` are the same wall. Line numbers, temp paths, commit hashes and ports change on every attempt. The cause does not. groundhog strips the noise and keeps the shape of the error. Two long errors from the same tool that differ in a single word (a workspace name, say) are also treated as one wall.
 
 When the count crosses a threshold, the hook adds a short note next to the tool result. The agent sees it on its next turn. groundhog never blocks a call and never rewrites output. It only adds evidence.
 
 ### What the agent sees
+
+This is the real output of the hook, copied from a run.
 
 On the second hit:
 
@@ -72,22 +91,48 @@ On the second hit:
 groundhog: this is the 2nd time this session that Bash failed with the same error signature:
   "Error: Cannot find module '<path>'"
 Recent attempts:
-  1. node scripts/migrate.js
-  2. node ./scripts/migrate.js --env dev
-The input changed but the error did not, so the cause is probably not what the last
-attempt changed. Before the next retry, write one sentence with a new hypothesis that
-explains every failure above, and the cheapest check that would prove it wrong.
-Then run that check.
+  1. npm test
+  2. npx jest
+The input changed but the error did not, so the cause is probably not what the last attempt changed. Before the next retry:
+  1. Write one sentence with a new hypothesis that explains every failure above.
+  2. Pick the cheapest check that could prove it wrong, and predict what it will print.
+  3. Run it and quote the line of output that confirms or kills the hypothesis.
+If you have your own debugging skill or process, use it for these steps.
 ```
 
-On the third, it is told to stop and pick one of three moves: read the full error and the code it points to, hand the problem to a fresh subagent with only the facts, or ask you.
+On the third:
 
-When an edit reverses an earlier edit to the same file:
+```
+groundhog: this is the 3rd time this session that Bash failed with the same error signature:
+  "Error: Cannot find module '<path>'"
+Recent attempts:
+  1. npm test
+  2. npx jest
+  3. node test/run.js
+Stop retrying variations: this is a wall, not bad luck. Pick one:
+  a) Read the full error and the exact code or config it points at, then state the root cause.
+  b) Hand the problem to a fresh-context subagent.
+  c) Ask the user.
+For b) and c), send a brief, not logs: the goal, the facts you verified (with the command that verified each), the hypotheses you ruled out, and the signature above.
+If you have your own debugging skill or process, use it now; otherwise the groundhog:unstick skill has the full protocol.
+```
+
+When an edit reverses an earlier edit to the same file (wrapped here for reading; the real note is one line):
 
 ```
 groundhog: this edit undoes an earlier edit to config.ts in this session
 (back-and-forth #1). You are oscillating between two versions. Before touching
-this file again, decide which version is correct and cite the evidence.
+this file again, decide which version is correct and cite the evidence (test output,
+docs, the caller that needs it).
+```
+
+When the agent keeps going edit, fail, re-edit on the same lines (also wrapped):
+
+```
+groundhog: you have rewritten lines you wrote earlier in parser.js 3 times this session.
+Editing the same spot again and again usually means each change is a guess. Before the
+next edit to this file, run the check that shows whether the last change worked, and
+say what it printed.
 ```
 
 ## Install
@@ -115,7 +160,7 @@ Once installed, there is nothing to run. The hooks work on their own.
 | Command | What it does |
 | --- | --- |
 | `/groundhog-report` | Scans your local session history and shows your top walls, how many had changing inputs, and how many edits were reverted. |
-| `groundhog:unstick` skill | The playbook the agent follows when a notice appears. The agent loads it on its own. You can also call it by name. |
+| `groundhog:unstick` skill | The playbook the agent follows when a note appears. The agent loads it on its own. You can also call it by name. |
 
 You can run the report outside Claude Code too:
 
@@ -125,6 +170,16 @@ node scripts/report.js --lang es  # Spanish
 node scripts/report.js --json     # raw numbers
 node scripts/report.js --dir /path/to/transcripts
 ```
+
+## Plays well with your setup
+
+groundhog is meant to sit under whatever you already use, not replace it.
+
+- **Your skills come first.** Every note says: *"If you have your own debugging skill or process, use it."* If you have a debugging skill, a test-first workflow or a house playbook, the agent is pointed back to it. `groundhog:unstick` is only the fallback.
+- **MCP tools are covered.** The failure hook matches every tool, so a database, browser or API server that keeps failing the same way is counted like `Bash` (there is a test for `mcp__db__query`).
+- **It never blocks.** It does not deny calls, rewrite output or stop the session. It only adds a few lines of context, so it cannot break another plugin's hooks or your own.
+- **It coexists with other hooks.** Claude Code runs all matching hooks. groundhog's run in milliseconds, write only to their own data folder and stay silent on anything they don't understand.
+- **One switch to turn it off:** `GROUNDHOG_DISABLE=1`.
 
 ## Configuration
 
@@ -136,17 +191,80 @@ All settings are environment variables. Set them in your shell or in the `env` b
 | `GROUNDHOG_STOP_AT` | `3` | Hit number that triggers the "stop" note (never lower than `WARN_AT`). |
 | `GROUNDHOG_DISABLE` | unset | Set to `1` to turn groundhog off without uninstalling it. |
 
+## Evidence
+
+Claims are cheap, so here is what you can check yourself.
+
+**It works as described.** 56 automated tests with Node's built-in runner, on Linux, macOS and Windows with Node 20, 22 and 24 in CI. They cover the 2nd and 3rd hit, near-duplicate errors that should merge and short errors that must not, progress resets, reverts, rework, MCP tools, malformed and oversized input, path traversal in session ids, corrupt state files and secret masking. The messages above are pasted from a real run, not written by hand.
+
+```bash
+node --test
+claude plugin validate . --strict
+```
+
+**What it would have caught.** `bench/replay.js` replays your saved sessions through the same detector and counts what happened *after* groundhog would have spoken. On my 620 sessions:
+
+| What | Value |
+| --- | --- |
+| Tool calls replayed | 78,443 |
+| Failed tool calls | 2,203 (2.8%) |
+| Notes groundhog would have added | 863 (1.1 per 100 tool calls) |
+| Sessions that would get at least one note | 266 (43%) |
+| Failed calls that came **after** the first note on their wall | 352 (16% of all failures) |
+| Failed calls that came **after** the "stop" note | 212 (9.6% of all failures) |
+| Error output in those 352 calls | about 28k tokens |
+
+Read this as an upper bound, not an A/B test. It shows how much failed work happened after the point where groundhog speaks, which is the most a note could save. It does not prove the agent would have listened. The note rate is the cost side: about one short note per hundred tool calls. That still means four sessions in ten would see at least one, so the notes are kept short and only appear when something actually repeats.
+
+Run it on your own history (it prints aggregates only, never commands or file names):
+
+```bash
+node bench/replay.js           # ~/.claude/projects
+node bench/replay.js --json
+node bench/replay.js --dir /path/to/transcripts
+```
+
+## Research behind it
+
+Every design choice maps to published work. groundhog does not reproduce these papers' experiments; it applies their findings to one narrow problem.
+
+| Design choice | What the research says | Source |
+| --- | --- | --- |
+| Speak early: 2nd hit, stop at 3rd | Debugging effectiveness decays fast with each repeated attempt; a strategic fresh start helps | Adnan & Kuhn 2025, [The Debugging Decay Index](https://arxiv.org/abs/2506.18403) |
+| Hand off to a fresh context, not keep going | Models that take a wrong turn in a long conversation rarely recover; a clean start with the facts consolidated does better | Laban et al. 2025, [LLMs Get Lost In Multi-Turn Conversation](https://arxiv.org/abs/2505.06120) |
+| | Models condition on their own earlier mistakes and make more of them over long tasks | Sinha et al. 2025, [The Illusion of Diminishing Returns](https://arxiv.org/abs/2509.09677) |
+| "Send a brief, not logs" | Dropping old tool output works as well as summarizing it, and costs less | Lindenbauer et al. 2025, [The Complexity Trap](https://arxiv.org/abs/2508.21433) |
+| Short note placed right next to the failure | Information buried in the middle of a long context is often ignored | Liu et al. 2023, [Lost in the Middle](https://arxiv.org/abs/2307.03172) |
+| Hypothesis must be tested by running something | Self-correction without external feedback does not help, and can hurt | Huang et al. 2023, [LLMs Cannot Self-Correct Reasoning Yet](https://arxiv.org/abs/2310.01798) |
+| | Self-correction works when reliable external feedback is available | Kamoi et al. 2024, [When Can LLMs Actually Correct Their Own Mistakes?](https://arxiv.org/abs/2406.01297) |
+| | Self-repair gains are modest once its cost is counted; better feedback is what helps | Olausson et al. 2023, [Is Self-Repair a Silver Bullet for Code Generation?](https://arxiv.org/abs/2306.09896) |
+| Hypothesis, prediction, check, quote the result | A scientific-debugging loop (hypothesize, predict, experiment, conclude) matches repair baselines while producing explanations that helped developers judge patches | Kang et al. 2023, [Explainable Automated Debugging via LLM-driven Scientific Debugging](https://arxiv.org/abs/2304.02195) |
+| | Explaining code against real execution results helps models fix their own bugs | Chen et al. 2023, [Teaching LLMs to Self-Debug](https://arxiv.org/abs/2304.05128) |
+| | Short verbal reflection on a failure improves the next attempt | Shinn et al. 2023, [Reflexion](https://arxiv.org/abs/2303.11366) |
+| Near-duplicate errors count as one wall | In a study of one agent app, combining structural and semantic similarity found more cycles than either alone | George et al. 2025, [Unsupervised Cycle Detection in Agentic Applications](https://arxiv.org/abs/2511.10650) |
+| Edit-tool hint and rework detector | The agent-computer interface shapes coding agents; failed edits tend to cascade into more failed edits | Yang et al. 2024, [SWE-agent](https://arxiv.org/abs/2405.15793) |
+| Treat repetition as a failure mode at all | Step repetition and not knowing when to stop are recurring failure modes in agent systems | Cemri et al. 2025, [Why Do Multi-Agent LLM Systems Fail?](https://arxiv.org/abs/2503.13657) |
+
 ## Privacy and security
 
 groundhog was built to be safe to install on a work machine.
 
-- **No network calls.** Nothing is sent anywhere. Check with `grep -r "http" scripts/`.
+**What it runs:** two Node.js scripts, only when a tool fails or an `Edit` succeeds. Each one reads the hook payload from stdin, updates a small JSON file and exits. Nothing stays running.
+
+**What it stores:** one JSON file per session in the plugin data folder Claude Code provides (or a per-user folder in your OS temp folder), readable only by you, deleted after 7 days. It holds:
+
+- for each wall: the normalized error signature (paths, numbers, URLs, emails and tokens masked; it can still contain words like a table or module name), a counter, the best "N passed" seen, hashes of the last two inputs, and the last 5 commands, cut to 100 characters, with URLs, emails, tokens and `key=value` secrets masked;
+- for up to 100 edited files: a hash of the path, truncated SHA-256 hashes of edit text and of edited lines (never the text itself), and revert and rework counters;
+- a running count of failures in the session.
+
+**What it sends:** nothing. There are no network calls. Check with `grep -r "http" scripts/`.
+
+And:
+
 - **No dependencies.** Only the Node.js standard library. There is no supply chain to compromise.
-- **Minimal state.** Per-session counters live in the plugin data folder Claude Code provides (or your OS temp folder), readable only by you. To show the agent what it already tried, each wall also keeps its last 5 commands, cut to 100 characters, with URLs, emails, tokens and `key=value` secrets masked. Files older than 7 days are deleted automatically.
-- **No code is stored.** For the revert detector, groundhog keeps only truncated SHA-256 hashes of edit text, never the text itself.
 - **Scrubbed output.** Signatures replace paths, URLs, emails, tokens, hashes and numbers with placeholders. The report goes further: it never prints commands, and it masks quoted names, CamelCase identifiers and MCP server names. Masking is pattern-based, so take a quick look before you post a report publicly.
 - **Fails closed to silence.** Malformed input, a corrupt state file or an oversized payload makes the hook exit quietly. It never breaks your session.
-- **Read-only report.** `/groundhog-report` only reads transcripts. It writes nothing.
+- **Read-only report and bench.** They only read transcripts. They write nothing.
 
 Found a security issue? See [SECURITY.md](SECURITY.md).
 
@@ -162,16 +280,17 @@ Related discussions: [#4317](https://github.com/anthropics/claude-code/issues/43
 
 ## Limitations
 
-- The signature is a heuristic. Two different bugs can share an error line ("Segmentation fault"), and one bug can print two different lines. The thresholds are low on purpose so a false alarm costs one sentence.
-- Only `Edit` calls are checked for reverts. A revert done with `Write` or a shell command is not seen.
+- The signature is a heuristic. Two different bugs can share an error line ("Segmentation fault"), and one bug can print two different lines. The near-duplicate merge joins errors from the same tool whose sets of distinct words overlap 80% or more. In practice one differing word is only absorbed when the error has 9 or more distinct words, so short errors stay apart, but two long errors that differ only in a type name can be joined. The thresholds are low on purpose so a false alarm costs one sentence.
+- The progress reset only understands test runners that print "N passed".
+- Only `Edit` calls are checked for reverts and rework. Changes made with `Write` or a shell command are not seen.
 - Counters are per session. A wall that spans several sessions is visible in the report, not live.
-- The report reads the transcript format Claude Code uses today. If that format changes, the report may undercount until it is updated. The hooks do not depend on it.
+- The report and bench read the transcript format Claude Code uses today. If that format changes, they may undercount until updated. The hooks do not depend on it.
 
 ## FAQ
 
-**Does it cost tokens?** A few hundred, only when a wall is hit. In my history, walls were a small share of total tokens. What groundhog saves is turns, time and patience.
+**Does it cost tokens?** A few hundred per note. In the replay above that was about one note per hundred tool calls.
 
-**Will it nag me during normal work?** Only if the same tool fails with the same normalized error at least twice in one session. A clean session never hears from it.
+**Will it nag me during normal work?** Only when the same tool fails with the same error twice in one session, an edit undoes an earlier one, or an edit loop shows up after a failure. Sessions without any of these never hear from it.
 
 **Does it work with subagents?** Yes. The hooks fire for subagent tool calls too, and they are counted under the session that reports them.
 

@@ -1,6 +1,6 @@
 {
   "name": "groundhog",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Notices when the agent keeps hitting the same error through different commands, or keeps undoing its own edits, and makes it stop and rethink.",
   "author": {
     "name": "Wilson Vargas Martinez",

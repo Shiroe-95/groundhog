@@ -17,6 +17,7 @@ cd groundhog
 node --test                       # todos los tests deben pasar
 claude plugin validate . --strict # si tienes Claude Code instalado
 claude --plugin-dir .             # prueba tu copia en vivo
+node bench/replay.js              # si cambias la detección: compara el número de notas antes y después
 ```
 
 Node.js 20.1 o superior.
