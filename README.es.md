@@ -1,5 +1,7 @@
 <div align="center">
 
+[English](README.md) · **Español**
+
 # groundhog
 
 **Tu agente de código sigue despertando en el mismo error. groundhog se da cuenta.**
@@ -10,8 +12,6 @@ Un plugin para Claude Code que detecta cuándo el agente choca con el mismo muro
 [![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-blue.svg)](LICENSE)
 ![Node >= 20.1](https://img.shields.io/badge/node-%3E%3D20.1-339933)
 ![Dependencias: 0](https://img.shields.io/badge/dependencias-0-brightgreen)
-
-[English](README.md)
 
 </div>
 

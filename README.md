@@ -1,5 +1,7 @@
 <div align="center">
 
+**English** · [Español](README.es.md)
+
 # groundhog
 
 **Your coding agent keeps waking up in the same error. groundhog notices.**
@@ -10,8 +12,6 @@ A Claude Code plugin that spots when the agent hits the same wall through *diffe
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Node >= 20.1](https://img.shields.io/badge/node-%3E%3D20.1-339933)
 ![Dependencies: 0](https://img.shields.io/badge/dependencies-0-brightgreen)
-
-[Español](README.es.md)
 
 </div>
 
