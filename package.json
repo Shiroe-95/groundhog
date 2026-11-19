@@ -1,0 +1,15 @@
+{
+  "name": "groundhog",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Claude Code plugin that notices repeated error walls and edit oscillation.",
+  "license": "MIT",
+  "repository": "github:Shiroe-95/groundhog",
+  "engines": {
+    "node": ">=20.1"
+  },
+  "scripts": {
+    "test": "node --test",
+    "report": "node scripts/report.js"
+  }
+}

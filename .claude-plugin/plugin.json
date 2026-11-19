@@ -1,0 +1,13 @@
+{
+  "name": "groundhog",
+  "version": "0.1.0",
+  "description": "Notices when the agent keeps hitting the same error through different commands, or keeps undoing its own edits, and makes it stop and rethink.",
+  "author": {
+    "name": "Wilson Vargas Martinez",
+    "url": "https://www.linkedin.com/in/wilsonvm09"
+  },
+  "homepage": "https://github.com/Shiroe-95/groundhog",
+  "repository": "https://github.com/Shiroe-95/groundhog",
+  "license": "MIT",
+  "keywords": ["hooks", "loops", "debugging", "retries", "productivity"]
+}

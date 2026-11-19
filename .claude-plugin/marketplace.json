@@ -1,0 +1,15 @@
+{
+  "name": "groundhog",
+  "owner": {
+    "name": "Wilson Vargas Martinez",
+    "url": "https://www.linkedin.com/in/wilsonvm09"
+  },
+  "description": "groundhog plugin marketplace",
+  "plugins": [
+    {
+      "name": "groundhog",
+      "source": "./",
+      "description": "Notices when the agent keeps hitting the same error through different commands, or keeps undoing its own edits."
+    }
+  ]
+}

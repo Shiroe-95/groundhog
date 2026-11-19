@@ -1,0 +1,31 @@
+{
+  "description": "groundhog: notices when Claude keeps hitting the same error or undoing its own edits",
+  "hooks": {
+    "PostToolUseFailure": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/on-failure.js"],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/on-edit.js"],
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
