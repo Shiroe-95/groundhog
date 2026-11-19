@@ -56,7 +56,7 @@ You have seen it. The agent runs the tests, gets an error, tweaks the command, g
 
 Most loop guards look for **identical** calls: same tool, same arguments, over and over. That catches the dumbest loop, but it is not the common one. The agent rarely repeats itself exactly. It changes the input every time, and the error stays the same.
 
-I measured this on my own Claude Code history with `/groundhog-report`:
+Measured with `/groundhog-report` on a sample of 620 real Claude Code sessions:
 
 | What | Count |
 | --- | --- |
@@ -76,7 +76,7 @@ You can get the same table for your own sessions with `/groundhog-report`.
 
 | Benefit | What it means for you | Where the number comes from |
 | --- | --- | --- |
-| **Fewer wasted retries** | The agent is told it is looping on the 2nd failure, not the 6th. In my history, 16% of all failed calls came after that point. That is the ceiling on what the note can save. | [Evidence](#evidence) |
+| **Fewer wasted retries** | The agent is told it is looping on the 2nd failure, not the 6th. In the sample, 16% of all failed calls came after that point. That is the ceiling on what the note can save. | [Evidence](#evidence) |
 | **A cleaner context window** | Every repeated failure pastes the same error into the conversation again. Stopping the loop earlier leaves more room for the work that matters. | [Evidence](#evidence) |
 | **You hear about blockers sooner** | On the 3rd hit the agent is asked to find the root cause, hand off with a short brief, or ask you, instead of guessing quietly while you wait. | [What the agent sees](#what-the-agent-sees) |
 | **No more edit ping-pong** | It notices when an edit undoes an earlier one, or when the agent keeps rewriting the same lines after each failure. | [How it works](#how-it-works) |
@@ -96,7 +96,7 @@ There are four common ways to deal with a stuck agent today. Each one solves par
 | Debugging rules in `CLAUDE.md` or a debugging skill | Only if the agent notices it is looping | No | Yes | No: the agent has to remember them |
 | **groundhog** | **Yes: it counts the error, not the command** | **Yes: reverts and rework** | **Yes** | **Yes: on the 2nd and 3rd hit** |
 
-Why that matters: in my history, 77% of walls had the command changed at least once, so the first and third rows see a shorter loop or none at all. groundhog does not replace the others. It works next to an identical-call detector, and when you have a debugging skill it tells the agent to use it at the moment it is needed. More detail in [Why not just...](#why-not-just).
+Why that matters: in the sample, 77% of walls had the command changed at least once, so the first and third rows see a shorter loop or none at all. groundhog does not replace the others. It works next to an identical-call detector, and when you have a debugging skill it tells the agent to use it at the moment it is needed. More detail in [Why not just...](#why-not-just).
 
 ## How it works
 
@@ -122,6 +122,39 @@ Edit succeeds ──> PostToolUse hook
 **The signature is the key idea.** `Cannot find module '/home/a/src/db.js'` and `Cannot find module 'C:\work\src\db.js'` are the same wall. Line numbers, temp paths, commit hashes and ports change on every attempt. The cause does not. groundhog strips the noise and keeps the shape of the error. Two long errors from the same tool that differ in a single word (a workspace name, say) are also treated as one wall.
 
 When the count crosses a threshold, the hook adds a short note next to the tool result. The agent sees it on its next turn. groundhog never blocks a call and never rewrites output. It only adds evidence.
+
+### Inside the failure hook, step by step
+
+Claude Code runs the hook after every tool call that fails. It reads the failure, updates a small counter for the session and, if needed, prints a note. The whole run takes milliseconds, and if anything goes wrong inside the hook it exits quietly, so it can never break your session. Failures caused by you pressing Esc are ignored.
+
+1. **Pick the line that matters.** Colors and `exit code N` lines are dropped. groundhog takes the first line that looks like an error (it contains words such as *error*, *fail*, *not found*, *denied*, *cannot*, *invalid* or *exception*), or the first line if none does.
+2. **Mask secrets first.** URLs, email addresses, `password=...`, `token=...` and API-key-shaped strings are replaced before anything else happens, so they are never stored or shown.
+3. **Remove what changes between attempts.** Paths become `<path>`, host names `<host>`, hashes and ids `<hex>`, and every number `<n>`. The result is cut to 120 characters. That is the *signature*.
+4. **Find the wall.** The wall is "this tool + this signature". If there is no exact match, groundhog looks for a near match from the same tool: both signatures have at least 4 words and share 80% or more of them. That catches two long errors that differ only in a name, while short and different errors stay apart.
+5. **Check for progress.** If the output is a test summary and more tests pass than the last time this wall was seen, the agent is getting somewhere, so the count starts over.
+6. **Count and remember.** The wall's count goes up by one. groundhog keeps a short summary of the last 5 attempts (the command, file or first text argument, with secrets masked) and a fingerprint of the last 2 inputs, which tells it whether the agent changed anything or retried the exact same call.
+7. **Decide whether to speak.**
+
+| Hit | What happens |
+| --- | --- |
+| 1st | Nothing. One failure is normal work. |
+| 2nd (`GROUNDHOG_WARN_AT`) | The "hypothesis" note: what was tried, whether the input changed, and three steps: one hypothesis, the cheapest check with a predicted output, the quoted line that settles it. |
+| 3rd and later (`GROUNDHOG_STOP_AT`) | The "stop" note: stop retrying and pick root cause, a fresh subagent with a short brief, or ask the user. |
+
+If the tool that failed is `Edit`, the note adds a hint to re-read the file first, since that failure almost always means the file no longer matches what the agent remembers. Both thresholds can be changed in [Configuration](#configuration).
+
+### Inside the edit hook
+
+After every `Edit` that succeeds, a second hook looks at what was replaced. It stores only fingerprints (hashes) of the old and new text, never the file contents.
+
+- **Revert:** the agent changed A into B earlier, and now changes B back into A in the same file. groundhog says so on the first revert, because the agent is oscillating between two versions.
+- **Rework:** the agent rewrites lines it wrote itself earlier in the session, and some tool failed since its last edit to that file. That is the edit, fail, re-edit loop. Rewriting your own code is normal, so the note only appears every 3rd time.
+
+### What it keeps, and for how long
+
+One small JSON file per session, in the folder Claude Code gives the plugin (or a private temp folder). It holds counts, short attempt summaries with secrets masked, and hashes. Files older than 7 days are deleted, and a damaged file is simply replaced by a fresh one. Details in [Privacy and security](#privacy-and-security).
+
+The two skills are `unstick`, the full recovery protocol the stop note points to, and `/groundhog-report`, which runs the same detector over your saved sessions.
 
 ### What the agent sees
 
@@ -260,7 +293,7 @@ node --test
 claude plugin validate . --strict
 ```
 
-**What it would have caught.** `bench/replay.js` replays your saved sessions through the same detector and counts what happened *after* groundhog would have spoken. On my 620 sessions:
+**What it would have caught.** `bench/replay.js` replays your saved sessions through the same detector and counts what happened *after* groundhog would have spoken. On the same 620 sessions:
 
 | What | Value |
 | --- | --- |
@@ -328,7 +361,7 @@ Found a security issue? See [SECURITY.md](SECURITY.md).
 
 ## Why not just...
 
-**...use an identical-call loop detector?** Tools like LoopGuard, loop-circuit-breaker and agent-loop-detector are good at what they do. But they fingerprint the *call*, and in my data most walls change the call every time. groundhog fingerprints the *error*. The two approaches work fine together.
+**...use an identical-call loop detector?** Tools like LoopGuard, loop-circuit-breaker and agent-loop-detector are good at what they do. But they fingerprint the *call*, and in the measured sample most walls change the call every time. groundhog fingerprints the *error*. The two approaches work fine together.
 
 **...block the tool after N failures?** Blocking gets in the way when the retry is deliberate, like polling a server that is still starting. A note leaves the decision to the agent and keeps you in control.
 

@@ -56,7 +56,7 @@ Seguro lo has visto. El agente corre los tests, recibe un error, ajusta el coman
 
 La mayoría de los detectores de bucles buscan llamadas **idénticas**: misma herramienta, mismos argumentos, una y otra vez. Eso atrapa el bucle más tonto, pero no el más común. El agente casi nunca se repite exactamente. Cambia la entrada cada vez, y el error sigue igual.
 
-Lo medí en mi propio historial de Claude Code con `/groundhog-report`:
+Medido con `/groundhog-report` sobre una muestra de 620 sesiones reales de Claude Code:
 
 | Qué | Cantidad |
 | --- | --- |
@@ -76,7 +76,7 @@ Puedes sacar la misma tabla de tus propias sesiones con `/groundhog-report`.
 
 | Beneficio | Qué significa para ti | De dónde sale el dato |
 | --- | --- | --- |
-| **Menos reintentos perdidos** | El agente se entera de que está en bucle en el 2.º fallo, no en el 6.º. En mi historial, el 16% de todas las llamadas fallidas llegó después de ese punto. Ese es el techo de lo que la nota puede ahorrar. | [Evidencia](#evidencia) |
+| **Menos reintentos perdidos** | El agente se entera de que está en bucle en el 2.º fallo, no en el 6.º. En la muestra, el 16% de todas las llamadas fallidas llegó después de ese punto. Ese es el techo de lo que la nota puede ahorrar. | [Evidencia](#evidencia) |
 | **Una ventana de contexto más limpia** | Cada fallo repetido vuelve a pegar el mismo error en la conversación. Cortar el bucle antes deja más espacio para el trabajo que importa. | [Evidencia](#evidencia) |
 | **Te enteras antes de los bloqueos** | En el 3.er choque se le pide al agente encontrar la causa raíz, pasar el problema con un resumen corto o preguntarte, en vez de seguir adivinando en silencio mientras esperas. | [Lo que ve el agente](#lo-que-ve-el-agente) |
 | **Se acaba el ping-pong de ediciones** | Detecta cuando una edición deshace otra anterior, o cuando el agente reescribe las mismas líneas después de cada fallo. | [Cómo funciona](#cómo-funciona) |
@@ -96,7 +96,7 @@ Hoy hay cuatro formas comunes de lidiar con un agente atascado. Cada una resuelv
 | Reglas de depuración en `CLAUDE.md` o una skill de depuración | Solo si el agente se da cuenta de que está en bucle | No | Sí | No: el agente tiene que acordarse |
 | **groundhog** | **Sí: cuenta el error, no el comando** | **Sí: reversiones y retrabajo** | **Sí** | **Sí: en el 2.º y 3.er choque** |
 
-Por qué importa: en mi historial, en el 77% de los muros el comando cambió al menos una vez, así que la primera y la tercera fila ven un bucle más corto o ninguno. groundhog no reemplaza a los demás. Funciona junto a un detector de llamadas idénticas, y si tienes una skill de depuración le dice al agente que la use justo cuando hace falta. Más detalle en [¿Por qué no simplemente...](#por-qué-no-simplemente).
+Por qué importa: en la muestra, en el 77% de los muros el comando cambió al menos una vez, así que la primera y la tercera fila ven un bucle más corto o ninguno. groundhog no reemplaza a los demás. Funciona junto a un detector de llamadas idénticas, y si tienes una skill de depuración le dice al agente que la use justo cuando hace falta. Más detalle en [¿Por qué no simplemente...](#por-qué-no-simplemente).
 
 ## Cómo funciona
 
@@ -122,6 +122,39 @@ Edit sale bien ──> hook PostToolUse
 **La firma es la idea clave.** `Cannot find module '/home/a/src/db.js'` y `Cannot find module 'C:\work\src\db.js'` son el mismo muro. Los números de línea, las rutas temporales, los hashes de commit y los puertos cambian en cada intento. La causa no. groundhog quita el ruido y se queda con la forma del error. Dos errores largos de la misma herramienta que difieren en una sola palabra (el nombre de un workspace, por ejemplo) también cuentan como un solo muro.
 
 Cuando el contador cruza un umbral, el hook agrega una nota corta junto al resultado de la herramienta. El agente la ve en su siguiente turno. groundhog nunca bloquea una llamada ni reescribe la salida. Solo agrega evidencia.
+
+### Dentro del hook de fallos, paso a paso
+
+Claude Code ejecuta el hook después de cada llamada a una herramienta que falla. El hook lee el fallo, actualiza un pequeño contador de la sesión y, si hace falta, escribe una nota. Todo tarda milisegundos, y si algo sale mal dentro del hook termina en silencio, así que nunca puede romper tu sesión. Los fallos que causas tú al pulsar Esc se ignoran.
+
+1. **Elige la línea que importa.** Quita los colores y las líneas `exit code N`. Toma la primera línea que parece un error (contiene palabras como *error*, *fail*, *not found*, *denied*, *cannot*, *invalid* o *exception*), o la primera línea si ninguna lo parece.
+2. **Oculta los secretos primero.** URLs, correos, `password=...`, `token=...` y cadenas con forma de API key se reemplazan antes que nada, así que nunca se guardan ni se muestran.
+3. **Quita lo que cambia entre intentos.** Las rutas pasan a `<path>`, los nombres de host a `<host>`, los hashes e ids a `<hex>` y cada número a `<n>`. El resultado se corta a 120 caracteres. Eso es la *firma*.
+4. **Encuentra el muro.** El muro es "esta herramienta + esta firma". Si no hay coincidencia exacta, busca una casi igual de la misma herramienta: las dos firmas tienen al menos 4 palabras y comparten el 80% o más. Así une dos errores largos que solo difieren en un nombre, y deja separados los errores cortos y distintos.
+5. **Revisa si hay progreso.** Si la salida es un resumen de tests y pasan más tests que la última vez que se vio este muro, el agente está avanzando, así que el contador vuelve a cero.
+6. **Cuenta y recuerda.** El contador del muro sube en uno. groundhog guarda un resumen corto de los últimos 5 intentos (el comando, el archivo o el primer argumento de texto, con los secretos ocultos) y una huella de las últimas 2 entradas, que le dice si el agente cambió algo o repitió exactamente la misma llamada.
+7. **Decide si habla.**
+
+| Choque | Qué pasa |
+| --- | --- |
+| 1.º | Nada. Un fallo es trabajo normal. |
+| 2.º (`GROUNDHOG_WARN_AT`) | La nota de "hipótesis": qué se intentó, si la entrada cambió, y tres pasos: una hipótesis, la comprobación más barata con su salida prevista y la línea citada que lo resuelve. |
+| 3.º y siguientes (`GROUNDHOG_STOP_AT`) | La nota de "para": dejar de reintentar y elegir causa raíz, un subagente nuevo con un resumen corto, o preguntar al usuario. |
+
+Si la herramienta que falló es `Edit`, la nota agrega una pista para releer el archivo primero, porque ese fallo casi siempre significa que el archivo ya no coincide con lo que el agente recuerda. Los dos umbrales se pueden cambiar en [Configuración](#configuración).
+
+### Dentro del hook de ediciones
+
+Después de cada `Edit` que sale bien, un segundo hook mira qué se reemplazó. Solo guarda huellas (hashes) del texto viejo y del nuevo, nunca el contenido del archivo.
+
+- **Reversión:** antes el agente cambió A por B, y ahora cambia B otra vez por A en el mismo archivo. groundhog lo dice desde la primera reversión, porque el agente está oscilando entre dos versiones.
+- **Retrabajo:** el agente reescribe líneas que él mismo escribió antes en la sesión, y alguna herramienta falló desde su última edición de ese archivo. Es el ciclo editar, fallar, volver a editar. Reescribir tu propio código es normal, así que la nota solo aparece cada 3 veces.
+
+### Qué guarda y por cuánto tiempo
+
+Un archivo JSON pequeño por sesión, en la carpeta que Claude Code le da al plugin (o en una carpeta temporal privada). Contiene contadores, resúmenes cortos de intentos con los secretos ocultos, y hashes. Los archivos de más de 7 días se borran, y un archivo dañado simplemente se reemplaza por uno nuevo. Detalles en [Privacidad y seguridad](#privacidad-y-seguridad).
+
+Las dos skills son `unstick`, el protocolo completo de recuperación al que apunta la nota de "para", y `/groundhog-report`, que pasa el mismo detector sobre tus sesiones guardadas.
 
 ### Lo que ve el agente
 
@@ -260,7 +293,7 @@ node --test
 claude plugin validate . --strict
 ```
 
-**Lo que habría atrapado.** `bench/replay.js` vuelve a pasar tus sesiones guardadas por el mismo detector y cuenta lo que pasó *después* del momento en que groundhog habría hablado. En mis 620 sesiones:
+**Lo que habría atrapado.** `bench/replay.js` vuelve a pasar tus sesiones guardadas por el mismo detector y cuenta lo que pasó *después* del momento en que groundhog habría hablado. En las mismas 620 sesiones:
 
 | Qué | Valor |
 | --- | --- |
@@ -328,7 +361,7 @@ Además:
 
 ## ¿Por qué no simplemente...
 
-**...usar un detector de llamadas idénticas?** Herramientas como LoopGuard, loop-circuit-breaker y agent-loop-detector hacen bien lo suyo. Pero toman la huella de la *llamada*, y en mis datos la mayoría de los muros cambian la llamada cada vez. groundhog toma la huella del *error*. Los dos enfoques funcionan bien juntos.
+**...usar un detector de llamadas idénticas?** Herramientas como LoopGuard, loop-circuit-breaker y agent-loop-detector hacen bien lo suyo. Pero toman la huella de la *llamada*, y en la muestra medida la mayoría de los muros cambian la llamada cada vez. groundhog toma la huella del *error*. Los dos enfoques funcionan bien juntos.
 
 **...bloquear la herramienta tras N fallos?** Bloquear estorba cuando el reintento es deliberado, como consultar un servidor que todavía está arrancando. Una nota deja la decisión al agente y te mantiene a ti al mando.
 
