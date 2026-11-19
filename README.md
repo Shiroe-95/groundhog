@@ -16,7 +16,7 @@ A Claude Code plugin that spots when the agent hits the same wall through *diffe
 ![Dependencies: 0](https://img.shields.io/badge/dependencies-0-brightgreen)
 ![Network calls: 0](https://img.shields.io/badge/network%20calls-0-brightgreen)
 
-[The problem](#the-problem) · [How it works](#how-it-works) · [Install](#install) · [Evidence](#evidence) · [Research](#research-behind-it) · [Privacy](#privacy-and-security)
+[The problem](#the-problem) · [What you get](#what-you-get) · [How it compares](#how-it-compares) · [How it works](#how-it-works) · [Install](#install) · [Evidence](#evidence) · [Research](#research-behind-it) · [Privacy](#privacy-and-security)
 
 </div>
 
@@ -55,6 +55,32 @@ I measured this on my own Claude Code history with `/groundhog-report`:
 In three out of four walls the agent changed the command along the way, so a detector that waits for N identical calls in a row sees a shorter loop, or none at all. groundhog counts the error instead, so the changes do not hide the wall.
 
 You can get the same table for your own sessions with `/groundhog-report`.
+
+## What you get
+
+| Benefit | What it means for you | Where the number comes from |
+| --- | --- | --- |
+| **Fewer wasted retries** | The agent is told it is looping on the 2nd failure, not the 6th. In my history, 16% of all failed calls came after that point. That is the ceiling on what the note can save. | [Evidence](#evidence) |
+| **A cleaner context window** | Every repeated failure pastes the same error into the conversation again. Stopping the loop earlier leaves more room for the work that matters. | [Evidence](#evidence) |
+| **You hear about blockers sooner** | On the 3rd hit the agent is asked to find the root cause, hand off with a short brief, or ask you, instead of guessing quietly while you wait. | [What the agent sees](#what-the-agent-sees) |
+| **No more edit ping-pong** | It notices when an edit undoes an earlier one, or when the agent keeps rewriting the same lines after each failure. | [How it works](#how-it-works) |
+| **Nothing to pay when things go well** | No note unless something actually repeats: about one per 100 tool calls. It never blocks a tool, makes no network calls and has no dependencies. | [Evidence](#evidence), [Privacy](#privacy-and-security) |
+| **Works with what you already use** | Covers MCP tools too, defers to your own debugging skill if you have one, and runs next to other hooks. | [Plays well with your setup](#plays-well-with-your-setup) |
+| **A mirror of your own sessions** | `/groundhog-report` tells you how often your agent gets stuck and where, before you install anything. | [Usage](#usage) |
+
+## How it compares
+
+There are four common ways to deal with a stuck agent today. Each one solves part of the problem:
+
+| Approach | Catches a loop where the command keeps changing | Catches edit ping-pong | Never blocks a tool | Speaks up on its own, at the right moment |
+| --- | --- | --- | --- | --- |
+| Do nothing, let the agent retry | No | No | Yes | No |
+| Identical-call loop detectors (LoopGuard, loop-circuit-breaker, agent-loop-detector) | Only once the call repeats exactly | No: an edit and its undo are different calls | Depends on the tool | Yes |
+| Block the tool after N failures | Only if it counts failures, not calls | No | No | Yes, by stopping the agent |
+| Debugging rules in `CLAUDE.md` or a debugging skill | Only if the agent notices it is looping | No | Yes | No: the agent has to remember them |
+| **groundhog** | **Yes: it counts the error, not the command** | **Yes: reverts and rework** | **Yes** | **Yes: on the 2nd and 3rd hit** |
+
+Why that matters: in my history, 77% of walls had the command changed at least once, so the first and third rows see a shorter loop or none at all. groundhog does not replace the others. It works next to an identical-call detector, and when you have a debugging skill it tells the agent to use it at the moment it is needed. More detail in [Why not just...](#why-not-just).
 
 ## How it works
 

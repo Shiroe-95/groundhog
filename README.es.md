@@ -16,7 +16,7 @@ Un plugin para Claude Code que detecta cuándo el agente choca con el mismo muro
 ![Dependencias: 0](https://img.shields.io/badge/dependencias-0-brightgreen)
 ![Llamadas de red: 0](https://img.shields.io/badge/llamadas%20de%20red-0-brightgreen)
 
-[El problema](#el-problema) · [Cómo funciona](#cómo-funciona) · [Instalación](#instalación) · [Evidencia](#evidencia) · [Investigación](#investigación-que-lo-respalda) · [Privacidad](#privacidad-y-seguridad)
+[El problema](#el-problema) · [Qué ganas](#qué-ganas) · [Cómo se compara](#cómo-se-compara) · [Cómo funciona](#cómo-funciona) · [Instalación](#instalación) · [Evidencia](#evidencia) · [Investigación](#investigación-que-lo-respalda) · [Privacidad](#privacidad-y-seguridad)
 
 </div>
 
@@ -55,6 +55,32 @@ Lo medí en mi propio historial de Claude Code con `/groundhog-report`:
 En tres de cada cuatro muros el agente cambió el comando por el camino, así que un detector que espera N llamadas idénticas seguidas ve un bucle más corto, o ninguno. groundhog cuenta el error, así que los cambios no esconden el muro.
 
 Puedes sacar la misma tabla de tus propias sesiones con `/groundhog-report`.
+
+## Qué ganas
+
+| Beneficio | Qué significa para ti | De dónde sale el dato |
+| --- | --- | --- |
+| **Menos reintentos perdidos** | El agente se entera de que está en bucle en el 2.º fallo, no en el 6.º. En mi historial, el 16% de todas las llamadas fallidas llegó después de ese punto. Ese es el techo de lo que la nota puede ahorrar. | [Evidencia](#evidencia) |
+| **Una ventana de contexto más limpia** | Cada fallo repetido vuelve a pegar el mismo error en la conversación. Cortar el bucle antes deja más espacio para el trabajo que importa. | [Evidencia](#evidencia) |
+| **Te enteras antes de los bloqueos** | En el 3.er choque se le pide al agente encontrar la causa raíz, pasar el problema con un resumen corto o preguntarte, en vez de seguir adivinando en silencio mientras esperas. | [Lo que ve el agente](#lo-que-ve-el-agente) |
+| **Se acaba el ping-pong de ediciones** | Detecta cuando una edición deshace otra anterior, o cuando el agente reescribe las mismas líneas después de cada fallo. | [Cómo funciona](#cómo-funciona) |
+| **No cuesta nada cuando todo va bien** | No hay nota salvo que algo de verdad se repita: más o menos una por cada 100 llamadas. Nunca bloquea una herramienta, no hace llamadas de red y no tiene dependencias. | [Evidencia](#evidencia), [Privacidad](#privacidad-y-seguridad) |
+| **Funciona con lo que ya usas** | Cubre también las herramientas MCP, cede el paso a tu propia skill de depuración si la tienes y convive con otros hooks. | [Convive con tu configuración](#convive-con-tu-configuración) |
+| **Un espejo de tus propias sesiones** | `/groundhog-report` te dice cada cuánto se atasca tu agente y dónde, antes de instalar nada. | [Uso](#uso) |
+
+## Cómo se compara
+
+Hoy hay cuatro formas comunes de lidiar con un agente atascado. Cada una resuelve una parte del problema:
+
+| Enfoque | Detecta un bucle donde el comando va cambiando | Detecta el ping-pong de ediciones | Nunca bloquea una herramienta | Avisa solo, en el momento justo |
+| --- | --- | --- | --- | --- |
+| No hacer nada, dejar que el agente reintente | No | No | Sí | No |
+| Detectores de llamadas idénticas (LoopGuard, loop-circuit-breaker, agent-loop-detector) | Solo cuando la llamada se repite exacta | No: una edición y su reversión son llamadas distintas | Depende de la herramienta | Sí |
+| Bloquear la herramienta tras N fallos | Solo si cuenta fallos y no llamadas | No | No | Sí, frenando al agente |
+| Reglas de depuración en `CLAUDE.md` o una skill de depuración | Solo si el agente se da cuenta de que está en bucle | No | Sí | No: el agente tiene que acordarse |
+| **groundhog** | **Sí: cuenta el error, no el comando** | **Sí: reversiones y retrabajo** | **Sí** | **Sí: en el 2.º y 3.er choque** |
+
+Por qué importa: en mi historial, en el 77% de los muros el comando cambió al menos una vez, así que la primera y la tercera fila ven un bucle más corto o ninguno. groundhog no reemplaza a los demás. Funciona junto a un detector de llamadas idénticas, y si tienes una skill de depuración le dice al agente que la use justo cuando hace falta. Más detalle en [¿Por qué no simplemente...](#por-qué-no-simplemente).
 
 ## Cómo funciona
 
