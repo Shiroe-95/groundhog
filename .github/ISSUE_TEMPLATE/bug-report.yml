@@ -1,0 +1,27 @@
+name: Bug report / Reporte de error
+description: A hook failed, a note was wrong or unhelpful, or the report is off. / Un hook falló, una nota estuvo mal o no sirvió, o el reporte no cuadra.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened? / ¿Qué pasó?
+      description: If a note did not help, paste what it said and what the agent did next. / Si una nota no ayudó, pega lo que decía y lo que hizo el agente después.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect? / ¿Qué esperabas?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: groundhog version / Versión de groundhog
+      placeholder: "0.2.0"
+  - type: input
+    id: env
+    attributes:
+      label: OS, Node.js and Claude Code versions / SO, versión de Node.js y de Claude Code
+      placeholder: "macOS 15, Node 22.11, Claude Code 2.x"
