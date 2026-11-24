@@ -1,0 +1,19 @@
+name: Idea
+description: Something groundhog should notice or do. / Algo que groundhog debería detectar o hacer.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        groundhog has no dependencies, makes no network calls and never blocks a tool. Ideas that keep those rules are much easier to accept.
+        groundhog no tiene dependencias, no usa la red y nunca bloquea una herramienta. Las ideas que respetan esas reglas son mucho más fáciles de aceptar.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The loop or problem you saw / El bucle o problema que viste
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What groundhog could do / Qué podría hacer groundhog

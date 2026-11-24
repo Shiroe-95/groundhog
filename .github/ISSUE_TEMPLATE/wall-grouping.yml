@@ -1,0 +1,39 @@
+name: Wall grouped badly / Error agrupado mal
+description: Two errors that should count as the same wall but don't, or the other way around. / Dos errores que deberían contar como el mismo muro y no lo hacen, o al revés.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove personal paths, user names, hosts and secrets before pasting. groundhog never needs them.
+        Quita rutas personales, nombres de usuario, hosts y secretos antes de pegar. groundhog nunca los necesita.
+  - type: dropdown
+    id: direction
+    attributes:
+      label: What went wrong? / ¿Qué salió mal?
+      options:
+        - They should be the same wall, but count separately / Deberían ser el mismo muro, pero cuentan por separado
+        - They are different problems, but count as one wall / Son problemas distintos, pero cuentan como un muro
+    validations:
+      required: true
+  - type: input
+    id: tool
+    attributes:
+      label: Tool / Herramienta
+      placeholder: Bash, Edit, mcp__server__tool...
+    validations:
+      required: true
+  - type: textarea
+    id: first
+    attributes:
+      label: First error text / Texto del primer error
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: second
+    attributes:
+      label: Second error text / Texto del segundo error
+      render: text
+    validations:
+      required: true
