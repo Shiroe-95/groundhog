@@ -30,3 +30,17 @@ test('replay counts failed calls made after each note would fire', async () => {
   assert.match(format(r), /not an A\/B test/);
   assert.doesNotMatch(format(r), /Cannot find|try \d/);
 });
+
+test('replay does not escalate when the TAP passing count improves', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'groundhog-progress-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const lines = [];
+  for (const [i, n] of [10, 10, 11].entries()) {
+    const id = `t${i}`;
+    lines.push(use(id, { command: 'node --test' }), res(id, `# tests 12\n# pass ${n}\n# fail ${12 - n}`));
+  }
+  fs.writeFileSync(path.join(dir, 's.jsonl'), lines.join('\n'));
+  const r = await replay(dir);
+  assert.deepEqual(r.notes, { warn: 1, stop: 0, revert: 0, rework: 0 });
+  assert.equal(r.afterWarn.calls, 0);
+});

@@ -156,3 +156,28 @@ test('edit tracking keeps at most 100 files', () => {
   for (let i = 0; i < 150; i++) recordEdit(s, { file: `/p/f${i}.js`, oldStr: 'a', newStr: 'b' });
   assert.equal(Object.keys(s.edits).length, 100);
 });
+
+for (const [name, summary] of [
+  ['Node TAP', (n) => `# tests 12\n# pass ${n}\n# fail ${12 - n}`],
+  ['Mocha', (n) => `  ${n} passing (20ms)\n  ${12 - n} failing`],
+]) {
+  test(`${name} progress resets the wall only when the best count increases`, () => {
+    const s = newState();
+    assert.equal(fail(s, 'npm test', summary(10)).count, 1);
+    assert.equal(fail(s, 'npm test', summary(10)).count, 2);
+    const hit = fail(s, 'npm test', summary(11));
+    assert.equal(hit.count, 1);
+    assert.deepEqual(hit.attempts, ['npm test']);
+    assert.equal(fail(s, 'npm test', summary(9)).count, 2);
+    assert.equal(fail(s, 'npm test', summary(11)).count, 3);
+    assert.equal(fail(s, 'npm test', summary(12)).count, 1);
+  });
+}
+
+test('passing and TAP words inside error messages are not progress', () => {
+  const s = newState();
+  const err = (n) => `Error: ${n} passing arguments failed\nError: unexpected # pass ${n}`;
+  assert.equal(fail(s, 'npm test', err(10)).count, 1);
+  assert.equal(fail(s, 'npm test', err(11)).count, 2);
+  assert.equal(fail(s, 'npm test', err(12)).count, 3);
+});
