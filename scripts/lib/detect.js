@@ -55,13 +55,17 @@ function nearWall(state, tool, sig) {
   return best;
 }
 
-// Test runners print "N passed". More passing tests than last time means the
-// agent is making progress, so the wall starts over. Only summary lines count
-// (they also say failed, total or tests), and the largest number wins, so a
-// "Test Suites: 3 passed" line does not hide "Tests: 40 passed".
+// Test runners print passing counts in different summary formats. More passing
+// tests than last time means the agent is making progress, so the wall starts
+// over. Anchor TAP and Mocha counters to whole lines; keep the context guard
+// for "N passed". The largest count wins rather than a smaller suite count.
 function passedCount(error) {
   let best = null;
-  for (const line of String(error).slice(0, 20000).split('\n')) {
+  for (const raw of String(error).slice(0, 20000).split('\n')) {
+    const line = raw.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '');
+    const summary = line.match(/^\s*#\s+pass\s+(\d+)\s*$/)
+      ?? line.match(/^\s*(\d+)\s+passing(?:\s+\(\d+(?:\.\d+)?(?:ms|s|m|h|d|w|y)\))?\s*$/);
+    if (summary) best = Math.max(best ?? 0, Number(summary[1]));
     if (!/\b(?:failed|failing|total|tests?)\b/i.test(line)) continue;
     for (const m of line.matchAll(/(\d+)\s+(?:tests?\s+)?passed/gi)) best = Math.max(best ?? 0, Number(m[1]));
   }
