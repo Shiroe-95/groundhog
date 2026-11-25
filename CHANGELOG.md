@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- Progress reset now recognizes Node.js TAP `# pass N` and Mocha `N passing` summaries without counting unrelated error text (#2, #3).
+
 ## [0.2.0] - 2026-11-18
 
 ### Added

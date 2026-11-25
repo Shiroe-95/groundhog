@@ -286,7 +286,7 @@ Todos los ajustes son variables de entorno. Defínelas en tu shell o en el bloqu
 
 Las afirmaciones salen baratas, así que aquí está lo que puedes comprobar tú mismo.
 
-**Funciona como se describe.** 56 tests automáticos con el runner integrado de Node, en Linux, macOS y Windows con Node 20, 22 y 24 en CI. Cubren el 2.º y 3.º choque, errores casi iguales que deben unirse y errores cortos que no, el reinicio por progreso, reversiones, retrabajo, herramientas MCP, entradas malformadas y gigantes, path traversal en ids de sesión, archivos de estado corruptos y el enmascarado de secretos. Los mensajes de arriba están pegados de una ejecución real, no escritos a mano.
+**Funciona como se describe.** 62 tests automáticos con el runner integrado de Node, en Linux, macOS y Windows con Node 20, 22 y 24 en CI. Cubren el 2.º y 3.º choque, errores casi iguales que deben unirse y errores cortos que no, el reinicio por progreso, reversiones, retrabajo, herramientas MCP, entradas malformadas y gigantes, path traversal en ids de sesión, archivos de estado corruptos y el enmascarado de secretos. Los mensajes de arriba están pegados de una ejecución real, no escritos a mano.
 
 ```bash
 node --test
@@ -344,7 +344,7 @@ groundhog se construyó para poder instalarse sin riesgo en una máquina de trab
 
 **Qué guarda:** un archivo JSON por sesión en la carpeta de datos que da Claude Code (o en una carpeta propia de tu usuario dentro de la carpeta temporal del sistema), legible solo por ti, borrado a los 7 días. Contiene:
 
-- por cada muro: la firma normalizada del error (rutas, números, URLs, correos y tokens enmascarados; aun así puede contener palabras como el nombre de una tabla o un módulo), un contador, el mayor "N passed" visto, hashes de las dos últimas entradas y los últimos 5 comandos, cortados a 100 caracteres, con URLs, correos, tokens y secretos `clave=valor` enmascarados;
+- por cada muro: la firma normalizada del error (rutas, números, URLs, correos y tokens enmascarados; aun así puede contener palabras como el nombre de una tabla o un módulo), un contador, el mayor número de tests aprobados reconocido, hashes de las dos últimas entradas y los últimos 5 comandos, cortados a 100 caracteres, con URLs, correos, tokens y secretos `clave=valor` enmascarados;
 - para hasta 100 archivos editados: un hash de la ruta, hashes SHA-256 truncados del texto editado y de las líneas editadas (nunca el texto) y contadores de reversiones y retrabajo;
 - un contador de fallos de la sesión.
 
@@ -372,7 +372,7 @@ Discusiones relacionadas: [#4317](https://github.com/anthropics/claude-code/issu
 ## Limitaciones
 
 - La firma es una heurística. Dos bugs distintos pueden compartir una línea de error ("Segmentation fault"), y un mismo bug puede imprimir dos líneas distintas. La unión de errores casi iguales junta errores de la misma herramienta cuyos conjuntos de palabras distintas coinciden en un 80% o más. En la práctica una sola palabra distinta solo se absorbe cuando el error tiene 9 o más palabras distintas, así que los errores cortos quedan separados, pero dos errores largos que solo difieren en el nombre de un tipo pueden unirse. Los umbrales son bajos a propósito para que una falsa alarma cueste una sola frase.
-- El reinicio por progreso solo entiende runners de tests que imprimen "N passed".
+- El reinicio por progreso reconoce resúmenes con "N passed", "# pass N" del formato TAP de Node.js y "N passing" de Mocha; puede no reconocer otros formatos.
 - Solo se revisan las llamadas `Edit` para reversiones y retrabajo. Los cambios hechos con `Write` o con un comando de shell no se ven.
 - Los contadores son por sesión. Un muro que abarca varias sesiones se ve en el reporte, no en vivo.
 - El reporte y el bench leen el formato de transcript que usa Claude Code hoy. Si ese formato cambia, podrían contar de menos hasta que se actualicen. Los hooks no dependen de él.

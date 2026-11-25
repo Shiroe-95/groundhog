@@ -286,7 +286,7 @@ All settings are environment variables. Set them in your shell or in the `env` b
 
 Claims are cheap, so here is what you can check yourself.
 
-**It works as described.** 56 automated tests with Node's built-in runner, on Linux, macOS and Windows with Node 20, 22 and 24 in CI. They cover the 2nd and 3rd hit, near-duplicate errors that should merge and short errors that must not, progress resets, reverts, rework, MCP tools, malformed and oversized input, path traversal in session ids, corrupt state files and secret masking. The messages above are pasted from a real run, not written by hand.
+**It works as described.** 62 automated tests with Node's built-in runner, on Linux, macOS and Windows with Node 20, 22 and 24 in CI. They cover the 2nd and 3rd hit, near-duplicate errors that should merge and short errors that must not, progress resets, reverts, rework, MCP tools, malformed and oversized input, path traversal in session ids, corrupt state files and secret masking. The messages above are pasted from a real run, not written by hand.
 
 ```bash
 node --test
@@ -344,7 +344,7 @@ groundhog was built to be safe to install on a work machine.
 
 **What it stores:** one JSON file per session in the plugin data folder Claude Code provides (or a per-user folder in your OS temp folder), readable only by you, deleted after 7 days. It holds:
 
-- for each wall: the normalized error signature (paths, numbers, URLs, emails and tokens masked; it can still contain words like a table or module name), a counter, the best "N passed" seen, hashes of the last two inputs, and the last 5 commands, cut to 100 characters, with URLs, emails, tokens and `key=value` secrets masked;
+- for each wall: the normalized error signature (paths, numbers, URLs, emails and tokens masked; it can still contain words like a table or module name), a counter, the best recognized passing-test count, hashes of the last two inputs, and the last 5 commands, cut to 100 characters, with URLs, emails, tokens and `key=value` secrets masked;
 - for up to 100 edited files: a hash of the path, truncated SHA-256 hashes of edit text and of edited lines (never the text itself), and revert and rework counters;
 - a running count of failures in the session.
 
@@ -372,7 +372,7 @@ Related discussions: [#4317](https://github.com/anthropics/claude-code/issues/43
 ## Limitations
 
 - The signature is a heuristic. Two different bugs can share an error line ("Segmentation fault"), and one bug can print two different lines. The near-duplicate merge joins errors from the same tool whose sets of distinct words overlap 80% or more. In practice one differing word is only absorbed when the error has 9 or more distinct words, so short errors stay apart, but two long errors that differ only in a type name can be joined. The thresholds are low on purpose so a false alarm costs one sentence.
-- The progress reset only understands test runners that print "N passed".
+- The progress reset recognizes test summaries with "N passed", Node.js TAP "# pass N", and Mocha "N passing"; other reporter formats may not be recognized.
 - Only `Edit` calls are checked for reverts and rework. Changes made with `Write` or a shell command are not seen.
 - Counters are per session. A wall that spans several sessions is visible in the report, not live.
 - The report and bench read the transcript format Claude Code uses today. If that format changes, they may undercount until updated. The hooks do not depend on it.

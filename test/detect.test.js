@@ -160,6 +160,8 @@ test('edit tracking keeps at most 100 files', () => {
 for (const [name, summary] of [
   ['Node TAP', (n) => `# tests 12\n# pass ${n}\n# fail ${12 - n}`],
   ['Mocha', (n) => `  ${n} passing (20ms)\n  ${12 - n} failing`],
+  ['Mocha without duration', (n) => `  ${n} passing\n  ${12 - n} failing`],
+  ['Colored Mocha with CRLF', (n) => `  \x1b[32m${n} passing\x1b[0m (20ms)\r\n  \x1b[31m${12 - n} failing\x1b[0m`],
 ]) {
   test(`${name} progress resets the wall only when the best count increases`, () => {
     const s = newState();
